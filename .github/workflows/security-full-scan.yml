@@ -69,35 +69,30 @@ jobs:
           done
 
       ##################################################
-      # 4️⃣ Tổng hợp kết quả đầu ra (summary.log)
+      # 5️⃣ Tổng hợp kết quả (summary.log)
       ##################################################
-      - name: 📝 Summarize scan results
+      - name: 📝 Generate Summary Report
         run: |
           echo "🧾 Tổng hợp kết quả quét bảo mật" > summary.log
           echo "==============================" >> summary.log
 
-          # 🔐 Trivy summary
-          if grep -q 'Secret' trivy_output.log; then
+          if grep -q "Secret detected" trivy_output.log; then
             echo "🔐 Trivy: ⚠️ Có thể chứa secrets cần kiểm tra thêm." >> summary.log
           else
-            echo "🔐 Trivy: ✅ An toàn (không phát hiện secret nào)." >> summary.log
+            echo "🔐 Trivy: ✅ Không phát hiện secrets." >> summary.log
           fi
 
-          # 🦠 ClamAV summary
-          if grep -q 'FOUND' clamav_output.log; then
+          if grep -q "FOUND" clamav_output.log; then
             echo "🦠 ClamAV: ⚠️ Phát hiện mã độc nghi vấn (FOUND)." >> summary.log
           else
-            echo "🦠 ClamAV: ✅ An toàn (không có virus)." >> summary.log
+            echo "🦠 ClamAV: ✅ Không phát hiện mã độc." >> summary.log
           fi
 
-          # 🧬 YARA summary
-          yara_hits=$(grep -c '^' yara_output.log || true)
-          if [ "$yara_hits" -gt 50 ]; then
-            echo "🧬 YARA: 🔥 Rất nhiều rule match – cần kiểm tra kỹ source!" >> summary.log
-          elif [ "$yara_hits" -gt 0 ]; then
-            echo "🧬 YARA: ⚠️ Có match với rule mã độc – nên rà soát thêm." >> summary.log
+          yara_matches=$(grep -v "^🔎 " yara_output.log | grep -v "^🧬" | grep -v "^warning" | grep -v "^$" | wc -l)
+          if [ "$yara_matches" -gt 0 ]; then
+            echo "🧬 YARA: ⚠️ Có $yara_matches rule match – cần kiểm tra thêm!" >> summary.log
           else
-            echo "🧬 YARA: ✅ Không phát hiện match nào đáng chú ý." >> summary.log
+            echo "🧬 YARA: ✅ Không phát hiện mẫu độc hại." >> summary.log
           fi
 
       ##################################################
