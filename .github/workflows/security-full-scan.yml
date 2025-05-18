@@ -69,9 +69,41 @@ jobs:
           done
 
       ##################################################
-      # 4️⃣ 📁 Upload log reports as Artifact
+      # 4️⃣ Tổng hợp kết quả đầu ra (summary.log)
       ##################################################
-      - name: 📎 Upload scan logs (Trivy, ClamAV, YARA)
+      - name: 📝 Summarize scan results
+        run: |
+          echo "🧾 Tổng hợp kết quả quét bảo mật" > summary.log
+          echo "==============================" >> summary.log
+
+          # 🔐 Trivy summary
+          if grep -q 'Secret' trivy_output.log; then
+            echo "🔐 Trivy: ⚠️ Có thể chứa secrets cần kiểm tra thêm." >> summary.log
+          else
+            echo "🔐 Trivy: ✅ An toàn (không phát hiện secret nào)." >> summary.log
+          fi
+
+          # 🦠 ClamAV summary
+          if grep -q 'FOUND' clamav_output.log; then
+            echo "🦠 ClamAV: ⚠️ Phát hiện mã độc nghi vấn (FOUND)." >> summary.log
+          else
+            echo "🦠 ClamAV: ✅ An toàn (không có virus)." >> summary.log
+          fi
+
+          # 🧬 YARA summary
+          yara_hits=$(grep -c '^' yara_output.log || true)
+          if [ "$yara_hits" -gt 50 ]; then
+            echo "🧬 YARA: 🔥 Rất nhiều rule match – cần kiểm tra kỹ source!" >> summary.log
+          elif [ "$yara_hits" -gt 0 ]; then
+            echo "🧬 YARA: ⚠️ Có match với rule mã độc – nên rà soát thêm." >> summary.log
+          else
+            echo "🧬 YARA: ✅ Không phát hiện match nào đáng chú ý." >> summary.log
+          fi
+
+      ##################################################
+      # 5️⃣ Upload toàn bộ log + summary
+      ##################################################
+      - name: 📎 Upload full scan logs + summary
         uses: actions/upload-artifact@v4
         with:
           name: full-scan-logs
@@ -79,3 +111,4 @@ jobs:
             trivy_output.log
             clamav_output.log
             yara_output.log
+            summary.log
