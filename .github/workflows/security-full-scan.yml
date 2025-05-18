@@ -12,55 +12,70 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: 📦 Checkout source
         uses: actions/checkout@v4
 
       ##################################################
-      # 1️⃣ Trivy – Quét mã độc & bí mật trong source
+      # 1️⃣ Trivy – Quét secrets và mã độc cơ bản
       ##################################################
-      - name: Install Trivy
+      - name: 🛡️ Install Trivy
         run: |
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
-      - name: Run Trivy Secret Scan
+      - name: 🔍 Trivy Secret Scan (Table format)
         run: |
+          echo "🔐 Trivy Secret Scan Result" > trivy_output.log
           trivy fs . \
             --scanners secret \
             --exit-code 0 \
-            --format table
+            --format table | tee -a trivy_output.log
 
       ##################################################
-      # 2️⃣ ClamAV – Quét mã độc/virus/trojans
+      # 2️⃣ ClamAV – Quét virus, trojan, worm
       ##################################################
-      - name: Install ClamAV
+      - name: 🦠 Install ClamAV
         run: |
           sudo apt-get update
           sudo apt-get install -y clamav clamav-daemon
 
-      - name: Update ClamAV DB (fix daemon conflict)
+      - name: 🔄 Update ClamAV DB
         run: |
           sudo systemctl stop clamav-freshclam || true
           sudo systemctl stop clamav-daemon || true
           sudo freshclam
 
-      - name: Run ClamAV Scan
+      - name: 🧪 Run ClamAV Scan
         run: |
-          clamscan -r --infected --no-summary . || true
+          echo "🦠 ClamAV Scan Result" > clamav_output.log
+          clamscan -r --infected --no-summary . | tee -a clamav_output.log || true
 
       ##################################################
-      # 3️⃣ YARA – Phát hiện mẫu mã độc tiềm ẩn (pattern rules)
+      # 3️⃣ YARA – Pattern nhận diện malware tinh vi
       ##################################################
-      - name: Install YARA
+      - name: 🔧 Install YARA
         run: |
-          sudo apt-get install -y yara
+          sudo apt-get install -y yara git
 
-      - name: Clone full YARA-Rules repo
+      - name: 🌐 Clone YARA-Rules full repo
         run: |
           git clone https://github.com/Yara-Rules/rules.git yara_rules
 
-      - name: Run YARA scan on all rules
+      - name: 🧬 Run YARA on all rules (with tagged report)
         run: |
+          echo "🧬 YARA Scan Result" > yara_output.log
           find yara_rules -type f \( -name "*.yar" -o -name "*.yara" \) | while read rule; do
-            echo "==> Scanning with: $rule"
-            yara -r "$rule" . || true
+            echo "🔎 Scanning with rule: $rule" | tee -a yara_output.log
+            yara -r "$rule" . 2>> yara_output.log | tee -a yara_output.log || true
           done
+
+      ##################################################
+      # 4️⃣ 📁 Upload log reports as Artifact
+      ##################################################
+      - name: 📎 Upload scan logs (Trivy, ClamAV, YARA)
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-scan-logs
+          path: |
+            trivy_output.log
+            clamav_output.log
+            yara_output.log
